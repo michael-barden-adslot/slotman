@@ -15,7 +15,7 @@ var NONE = 4,
 
 Slotman.FPS = 30;
 
-Slotman.Ghost = function (game, map, colour) {
+Slotman.Ghost = function (game, map, colour, image) {
     var position = null,
         direction = null,
         eatable = null,
@@ -164,26 +164,33 @@ Slotman.Ghost = function (game, map, colour) {
         ctx.closePath();
         ctx.fill();
 
-        ctx.beginPath();
-        ctx.fillStyle = COLOURS.GHOST_EYES;
-        ctx.arc(left + 6,top + 6, s / 6, 0, 300, false);
-        ctx.arc((left + s) - 6,top + 6, s / 6, 0, 300, false);
-        ctx.closePath();
-        ctx.fill();
+        if (image != null)
+        {
+            ctx.drawImage(image, left, top, s, s);
+        } else {
+            
 
-        var f = s / 12;
-        var off = {};
-        off[RIGHT] = [f, 0];
-        off[LEFT] = [-f, 0];
-        off[UP] = [0, -f];
-        off[DOWN] = [0, f];
+            ctx.beginPath();
+            ctx.fillStyle = COLOURS.GHOST_EYES;
+            ctx.arc(left + 6,top + 6, s / 6, 0, 300, false);
+            ctx.arc((left + s) - 6,top + 6, s / 6, 0, 300, false);
+            ctx.closePath();
+            ctx.fill();
 
-        ctx.beginPath();
-        ctx.fillStyle = COLOURS.GHOST_EYES_PUPILS;
-        ctx.arc(left+6+off[direction][0], top+6+off[direction][1], s / 15, 0, 300, false);
-        ctx.arc((left+s)-6+off[direction][0], top+6+off[direction][1], s / 15, 0, 300, false);
-        ctx.closePath();
-        ctx.fill();
+            var f = s / 12;
+            var off = {};
+            off[RIGHT] = [f, 0];
+            off[LEFT] = [-f, 0];
+            off[UP] = [0, -f];
+            off[DOWN] = [0, f];
+
+            ctx.beginPath();
+            ctx.fillStyle = COLOURS.GHOST_EYES_PUPILS;
+            ctx.arc(left+6+off[direction][0], top+6+off[direction][1], s / 15, 0, 300, false);
+            ctx.arc((left+s)-6+off[direction][0], top+6+off[direction][1], s / 15, 0, 300, false);
+            ctx.closePath();
+            ctx.fill();
+        }
 
     };
 
@@ -500,7 +507,7 @@ Slotman.User = function (game, map) {
     };
 };
 
-Slotman.Map = function (size) {
+Slotman.Map = function (size, biscuitImage) {
     var height = null, 
         width = null, 
         blockSize = size,
@@ -574,20 +581,19 @@ Slotman.Map = function (size) {
         for (i = 0; i < height; i += 1) {
             for (j = 0; j < width; j += 1) {
                 if (map[i][j] === Slotman.PILL) {
+
                     ctx.beginPath();
-
                     ctx.fillStyle = COLOURS.PILL_BLOCK_BG;
-                    ctx.fillRect((j * blockSize), (i * blockSize), 
-                                 blockSize, blockSize);
-
-                    ctx.fillStyle = COLOURS.PILL;
-                    ctx.arc((j * blockSize) + blockSize / 2,
-                            (i * blockSize) + blockSize / 2,
-                            Math.abs(5 - (pillSize/3)), 
-                            0, 
-                            Math.PI * 2, false); 
-                    ctx.fill();
+                    ctx.fillRect((j * blockSize), (i * blockSize), blockSize, blockSize);
                     ctx.closePath();
+
+                    intensity = Math.sin(Math.PI * pillSize / 30); // use sin curve based on changing size to produce "throb"
+                    itterationBlockSize = intensity * blockSize
+                    ctx.drawImage(biscuitImage,
+                                    (j * blockSize) + itterationBlockSize / 2,
+                                    (i * blockSize) + itterationBlockSize / 2,
+                                    blockSize - itterationBlockSize,
+                                    blockSize - itterationBlockSize)
                 }
             }
         }
@@ -652,8 +658,9 @@ Slotman.Map = function (size) {
 
 var SLOTMAN = (function () {
     var state        = WAITING,
-        ghosts       = [],
-        ghostSpecs   = ['#00FFDE', '#FF0000', '#FFB8DE', '#FFB847'],
+        ghosts = [],
+        ghostSpecs = ['#00FFDE', '#FF0000', '#FFB8DE', '#FFB847'],
+        ghostImages = ['ian-32.png', 'jc-32.png', 'robyn-32.png', 'jr-32.png'],
         eatenCount   = 0,
         level        = 0,
         tick         = 0,
@@ -680,10 +687,20 @@ var SLOTMAN = (function () {
     }
     
     function dialog(text) {
+
+
+
+
+        var width = ctx.measureText(text).width,
+            x = ((map.width * map.blockSize) - width) / 2;
+
+        // todo : fill rect here for subtitle
+
+        ctx.fillStyle = COLOURS.DIALOG_BG;
+        ctx.fillRect(x, (map.height * 10) - 5, width, 16);
+
         ctx.fillStyle = COLOURS.DIALOG_TEXT;
         ctx.font = 'bold 16px Roboto';
-        var width = ctx.measureText(text).width,
-            x = ((map.width * map.blockSize) - width) / 2;        
         ctx.fillText(text, x, (map.height * 10) + 8);
     }
     
@@ -877,6 +894,15 @@ var SLOTMAN = (function () {
         }
     };
     
+    function loadImage(imageName) {
+        if (imageName != null) {
+            var image = new Image();
+            image.src = imageName;
+            return image;
+        }
+        return;
+    }
+
     function init(wrapper, root) {
         var i, len, ghost,
             blockSize = wrapper.offsetWidth / 19,
@@ -887,16 +913,20 @@ var SLOTMAN = (function () {
 
         wrapper.appendChild(canvas);
 
+
+
+        var adslotImg = loadImage("favicon.png");
+
         ctx  = canvas.getContext('2d');
 
-        map = new Slotman.Map(blockSize);
+        map = new Slotman.Map(blockSize, adslotImg);
         user = new Slotman.User({ 
             'completedLevel' : completedLevel, 
             'eatenPill'      : eatenPill 
         }, map);
 
         for (i = 0, len = ghostSpecs.length; i < len; i += 1) {
-            ghost = new Slotman.Ghost({'getTick':getTick}, map, ghostSpecs[i]);
+            ghost = new Slotman.Ghost({ 'getTick': getTick }, map, ghostSpecs[i], loadImage(ghostImages[i]));
             ghosts.push(ghost);
         }
         
@@ -950,8 +980,9 @@ var COLOURS = {
 */
 
 var COLOURS = {
-    'BLOCK_BG':'#FFFFFF',
-    'SLOTMAN': '#E06080',
+    'BLOCK_BG': '#FFFFFF',
+    'DIALOG_BG': '#ff827d', // salmon
+    'SLOTMAN': '#ff827d', // salmon
     'GHOST_EYES':'#FFFFFF',
     'GHOST_EYES_PUPILS':'#000000',
     'GHOST_EATEN': '#222222',
